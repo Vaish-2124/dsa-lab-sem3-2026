@@ -1,0 +1,318 @@
+import json
+import sys
+
+SAVE_FILE = "pydtree_knowledge.json"
+
+
+# ---------- Milestone 1: the node ----------
+class TreeNode:
+    def __init__(self, text, yes_child=None, no_child=None):
+        self.text = text.strip()
+        self.yes_child = yes_child
+        self.no_child = no_child
+
+    def is_leaf(self):
+        # a leaf has no children, so it is a final guess
+        return self.yes_child is None and self.no_child is None
+
+
+# ---------- Milestone 2: counting ----------
+def count_nodes(root):
+    if root is None:
+        return 0
+    return 1 + count_nodes(root.yes_child) + count_nodes(root.no_child)
+
+
+def count_leaves(root):
+    if root is None:
+        return 0
+    if root.is_leaf():
+        return 1
+    return count_leaves(root.yes_child) + count_leaves(root.no_child)
+
+
+def tree_height(root):
+    if root is None:
+        return -1
+    if root.is_leaf():
+        return 0
+    return 1 + max(tree_height(root.yes_child), tree_height(root.no_child))
+
+
+# ---------- Milestone 3: traversals (yes = left, no = right) ----------
+def preorder_traversal(root):
+    if root is None:
+        return []
+    return [root.text] + preorder_traversal(root.yes_child) + preorder_traversal(root.no_child)
+
+
+def inorder_traversal(root):
+    if root is None:
+        return []
+    return inorder_traversal(root.yes_child) + [root.text] + inorder_traversal(root.no_child)
+
+
+def postorder_traversal(root):
+    if root is None:
+        return []
+    return postorder_traversal(root.yes_child) + postorder_traversal(root.no_child) + [root.text]
+
+
+# ---------- Milestone 4: save / load as dictionary ----------
+def tree_to_dict(root):
+    if root is None:
+        return None
+    if root.is_leaf():
+        return {"guess": root.text}
+    return {
+        "question": root.text,
+        "yes": tree_to_dict(root.yes_child),
+        "no": tree_to_dict(root.no_child),
+    }
+
+
+def dict_to_tree(data):
+    if data is None:
+        return None
+    if "guess" in data:
+        return TreeNode(data["guess"])
+    return TreeNode(data["question"], dict_to_tree(data["yes"]), dict_to_tree(data["no"]))
+
+
+# ---------- Milestone 5: learning (pointer grafting) ----------
+def graft_new_knowledge(leaf_node, new_question, new_guess, new_guess_is_yes):
+    old_guess = leaf_node.text            # 1. remember the old guess
+    new_leaf = TreeNode(new_guess)        # 2. make two new leaves
+    old_leaf = TreeNode(old_guess)
+    leaf_node.text = new_question.strip() # 3. this leaf becomes a question
+    if new_guess_is_yes:                  # 4. attach the children
+        leaf_node.yes_child = new_leaf
+        leaf_node.no_child = old_leaf
+    else:
+        leaf_node.yes_child = old_leaf
+        leaf_node.no_child = new_leaf
+
+
+def build_default_tree():
+    return TreeNode("Does it live in water?",
+                    TreeNode("Dolphin"),
+                    TreeNode("Does it bark?", TreeNode("Dog"), TreeNode("Elephant")))
+
+
+# ---------- Milestone 6: ASCII tree + menu ----------
+def label(node):
+    if node.is_leaf():
+        return "[★] " + node.text   # star = guess
+    return "[?] " + node.text            # ? = question
+
+
+def draw(node, prefix):
+    children = []
+    if node.yes_child is not None:
+        children.append(("Yes", node.yes_child))
+    if node.no_child is not None:
+        children.append(("No", node.no_child))
+
+    for i in range(len(children)):
+        tag, child = children[i]
+        if i == len(children) - 1:       # last child
+            print(prefix + "└─ (" + tag + ") " + label(child))
+            draw(child, prefix + "   ")
+        else:
+            print(prefix + "├─ (" + tag + ") " + label(child))
+            draw(child, prefix + "│  ")
+
+
+def print_ascii_tree(root):
+    if root is None:
+        print("(empty tree)")
+        return
+    print(label(root))
+    draw(root, "")
+
+
+def ask_yes_no(question):
+    while True:
+        answer = input(question + " (y/n): ").strip().lower()
+        if answer == "y" or answer == "yes":
+            return True
+        if answer == "n" or answer == "no":
+            return False
+        print("Please type y or n.")
+
+
+class MindReaderEngine:
+    def __init__(self):
+        self.root = self.load()
+
+    def load(self):
+        try:
+            with open(SAVE_FILE, "r", encoding="utf-8") as f:
+                return dict_to_tree(json.load(f))
+        except Exception:
+            return build_default_tree()   # no file yet -> use default
+
+    def save(self):
+        with open(SAVE_FILE, "w", encoding="utf-8") as f:
+            json.dump(tree_to_dict(self.root), f, indent=2)
+
+    def play(self):
+        print("\nThink of something... I will try to guess it!")
+        node = self.root
+        while not node.is_leaf():
+            if ask_yes_no(node.text):
+                node = node.yes_child
+            else:
+                node = node.no_child
+
+        if ask_yes_no("Is it a/an " + node.text + "?"):
+            print("I win!")
+            return
+
+        print("I give up! Help me learn.")
+        new_guess = input("What were you thinking of? ").strip()
+        new_question = input("Give a yes/no question that tells a " + new_guess +
+                             " from a " + node.text + ": ").strip()
+        is_yes = ask_yes_no("For a " + new_guess + ", the answer is")
+        graft_new_knowledge(node, new_question, new_guess, is_yes)
+        self.save()
+        print("Thanks! I learned about " + new_guess + ".")
+
+    def show_analytics(self):
+        print("\n--- Tree Analytics ---")
+        print("Height      :", tree_height(self.root))
+        print("Leaves      :", count_leaves(self.root))
+        print("Total nodes :", count_nodes(self.root))
+
+    def show_traversals(self):
+        print("\n--- Traversals ---")
+        print("Pre-order :", preorder_traversal(self.root))
+        print("In-order  :", inorder_traversal(self.root))
+        print("Post-order:", postorder_traversal(self.root))
+
+    def reset(self):
+        self.root = build_default_tree()
+        self.save()
+        print("Reset to default seed.")
+
+    def run(self):
+        while True:
+            print("\n=== PyDTree Mind Reader ===")
+            print("1. Play 20-Questions")
+            print("2. Display Visual Tree")
+            print("3. View Tree Analytics")
+            print("4. View Traversals")
+            print("5. Reset to default seed")
+            print("6. Exit")
+            try:
+                choice = input("Choose an option: ").strip()
+            except EOFError:
+                break
+
+            if choice == "1":
+                self.play()
+            elif choice == "2":
+                print()
+                print_ascii_tree(self.root)
+            elif choice == "3":
+                self.show_analytics()
+            elif choice == "4":
+                self.show_traversals()
+            elif choice == "5":
+                self.reset()
+            elif choice == "6":
+                print("Goodbye!")
+                break
+            else:
+                print("Invalid choice, type a number from 1 to 6.")
+
+
+# ---------- Tests ----------
+def run_tests():
+    line = "=" * 60
+    print(line)
+    print("\U0001F9EA Running PyDTree Milestone Verification Test Suite...")
+    print(line)
+
+    # Test 1
+    n = TreeNode("  Dog  ")
+    assert n.text == "Dog"
+    assert n.is_leaf()
+    assert not TreeNode("Q?", TreeNode("A"), TreeNode("B")).is_leaf()
+    print("  ✓ Test 1: Node & Leaf properties verified.")
+
+    # Test 2
+    assert count_nodes(None) == 0
+    assert count_leaves(None) == 0
+    assert tree_height(None) == -1
+    single = TreeNode("Solo")
+    assert count_nodes(single) == 1
+    assert count_leaves(single) == 1
+    assert tree_height(single) == 0
+    assert preorder_traversal(None) == []
+    print("  ✓ Test 2: Boundary edge cases (None, single node) verified.")
+
+    # Test 3
+    tree = build_default_tree()
+    assert count_nodes(tree) == 5
+    assert count_leaves(tree) == 3
+    assert tree_height(tree) == 2
+    print("  ✓ Test 3: Metrics on multi-level tree verified.")
+
+    # Test 4
+    assert preorder_traversal(tree) == ["Does it live in water?", "Dolphin",
+                                        "Does it bark?", "Dog", "Elephant"]
+    assert inorder_traversal(tree) == ["Dolphin", "Does it live in water?",
+                                       "Dog", "Does it bark?", "Elephant"]
+    assert postorder_traversal(tree) == ["Dolphin", "Dog", "Elephant",
+                                         "Does it bark?", "Does it live in water?"]
+    print("  ✓ Test 4: Pre-order, In-order, Post-order walks verified.")
+
+    # Test 5
+    t = build_default_tree()
+    elephant = t.no_child.no_child
+    graft_new_knowledge(elephant, "Does it have wings?", "Eagle", True)
+    assert elephant.text == "Does it have wings?"
+    assert elephant.yes_child.text == "Eagle"
+    assert elephant.no_child.text == "Elephant"
+    assert count_nodes(t) == 7
+    assert tree_height(t) == 3
+    dog = t.no_child.yes_child
+    graft_new_knowledge(dog, "Is it a reptile?", "Lizard", False)
+    assert dog.yes_child.text == "Dog"
+    assert dog.no_child.text == "Lizard"
+    print("  ✓ Test 5: Dynamic Pointer Mutation (Knowledge Grafting) verified.")
+
+    # Test 6
+    d = tree_to_dict(t)
+    assert tree_to_dict(TreeNode("X")) == {"guess": "X"}
+    copy = dict_to_tree(json.loads(json.dumps(d)))
+    assert tree_to_dict(copy) == d
+    assert dict_to_tree(None) is None
+    print("  ✓ Test 6: JSON Dictionary serialization round-trip verified.")
+
+    # Test 7
+    seed = build_default_tree()
+    assert seed.text == "Does it live in water?"
+    assert seed.yes_child.text == "Dolphin"
+    assert seed.no_child.text == "Does it bark?"
+    assert seed.no_child.yes_child.text == "Dog"
+    assert seed.no_child.no_child.text == "Elephant"
+    print("  ✓ Test 7: Default seed knowledge tree verified.")
+
+    print()
+    print(line)
+    print("\U0001F389 ALL 7 ASSIGNMENT UNIT TESTS PASSED! SCORE: 100/100")
+    print(line)
+
+
+if __name__ == "__main__":
+    # makes emoji and box symbols print correctly on Windows
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
+    if "--test" in sys.argv:
+        run_tests()
+    else:
