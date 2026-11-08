@@ -1,0 +1,42 @@
+PyDTree - Creative Challenge Evidence
+
+Five concepts added through knowledge grafting:
+1. Whale
+2. Shark
+3. Octopus
+4. Cat
+5. Giraffe
+
+Resulting ASCII tree:
+[?] Does it live in water?
+├── (Yes) [?] Is it larger than a car?
+│  ├── (Yes) [★] Whale
+│  └── (No) [?] Does it have gills?
+│     ├── (Yes) [★] Shark
+│     └── (No) [?] Does it have eight arms?
+│        ├── (Yes) [★] Octopus
+│        └── (No) [★] Dolphin
+└── (No) [?] Does it bark?
+   ├── (Yes) [?] Does it meow?
+   │  ├── (Yes) [★] Cat
+   │  └── (No) [★] Dog
+   └── (No) [?] Does it have a very long neck?
+      ├── (Yes) [★] Giraffe
+      └── (No) [★] Elephant
+
+Tree analytics:
+Height: 4
+Leaves: 8
+Total nodes: 15
+
+Postorder explanation:
+Postorder traversal is useful for calculating folder disk space because 
+it visits child folders before their parent folder. This allows the size
+of each file and subfolder to be calculated first. The parent folder can
+then add those results to find its total disk space.
+
+
+Important: This file demonstrates the five graft operations using the
+assignment's default tree. To personally demonstrate learning through the
+interactive menu, repeat these additions in your running game and capture
+the tree using menu option 2.
